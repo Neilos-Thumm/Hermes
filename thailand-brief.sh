@@ -9,7 +9,8 @@ for item in root.findall(".//item")[:15]:
     title = item.findtext("title") or ""
     desc = item.findtext("description") or ""
     desc = re.sub(r"<[^>]+>", "", desc).strip()
-    print(f"- {title}: {desc}")
+    link = item.findtext("link") or ""
+    print(f"- {title}: {desc} {link}")
 '
 
 echo
@@ -24,5 +25,6 @@ for item in root.findall(".//item")[:15]:
     desc = html.unescape(desc)
     desc = re.sub(r"The post .* appeared first on Khaosod English\.", "", desc)
     desc = re.sub(r"\s+", " ", desc).strip()
-    print(f"- {title}: {desc}")
+    link = item.findtext("link") or ""
+    print(f"- {title}: {desc} {link}")
 '

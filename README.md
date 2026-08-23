@@ -36,11 +36,11 @@ management**, below.
 
 | Feature | Trigger | LLM involved? | Delivers to | Logs to |
 |---|---|---|---|---|
-| `news-brief` | cron `0 6 * * *` | Yes — narrates general/world/politics headlines into a spoken script + a separate text brief | Discord (text brief, then audio) | `Briefing/news-brief/<date>.md` (the text brief, verbatim) |
+| `news-brief` | cron `0 6 * * *` | Yes — narrates general/world/politics headlines into a spoken script + a separate text brief (pure summary, capped at ~1950 chars) + a trailing "Sources:" link list, one per bullet, not counted against that cap | Discord (text brief, then audio) | `Briefing/news-brief/<date>.md` (the text brief, verbatim) |
 | `market-brief` | cron `0 6 * * *` | Yes — narrates index levels + market news into a spoken script + a separate text brief | Discord (text brief, then audio) | `Briefing/market-brief/<date>.md` (the text brief, verbatim) |
 | `tech-brief` | cron `0 6 * * *` | Yes — narrates LLM/AI model news + general tech news into a spoken script + a separate text brief, split into labeled "LLM & Models" / "Also in tech" halves, each with the item's own source link | Discord (text brief, then audio) | `Briefing/tech-brief/<date>.md` (the text brief, verbatim) |
-| `thailand-brief` | cron `0 6 * * *` | Yes — narrates Thailand-specific news (Bangkok Post's Thailand section + Khaosod English) into a spoken script + a separate text brief, pure summary, no links | Discord (text brief, then audio) | `Briefing/thailand-brief/<date>.md` (the text brief, verbatim) |
-| `australia-brief` | cron `0 6 * * *` | Yes — narrates Australia-specific news (ABC News' Around Australia feed + Guardian Australia, opinion/podcast/video items filtered out) into a spoken script + a separate text brief, pure summary, no links | Discord (text brief, then audio) | `Briefing/australia-brief/<date>.md` (the text brief, verbatim) |
+| `thailand-brief` | cron `0 6 * * *` | Yes — narrates Thailand-specific news (Bangkok Post's Thailand section + Khaosod English) into a spoken script + a separate text brief (pure summary, capped at ~1950 chars) + a trailing "Sources:" link list, one per bullet, not counted against that cap | Discord (text brief, then audio) | `Briefing/thailand-brief/<date>.md` (the text brief, verbatim) |
+| `australia-brief` | cron `0 6 * * *` | Yes — narrates Australia-specific news (ABC News' Around Australia feed + Guardian Australia, opinion/podcast/video items filtered out) into a spoken script + a separate text brief (pure summary, capped at ~1950 chars) + a trailing "Sources:" link list, one per bullet, not counted against that cap | Discord (text brief, then audio) | `Briefing/australia-brief/<date>.md` (the text brief, verbatim) |
 | `git-daily` | cron `0 6 * * *` | Yes — summarizes script output | Discord | `Briefing/git-daily/<date>.md` |
 | `trending-repos` | cron `0 6 * * *` | Yes — summarizes script output | Discord | `Briefing/trending-repos/<date>.md` |
 | `hermes-health` | cron `0 6 * * *` | **No** — pure script, `--no-agent` | Discord | `Briefing/hermes-health/<date>.md` |
@@ -66,11 +66,13 @@ expanding well past that on a genuinely big AI/tech news day. `thailand-brief` s
 split — country-scoped news doesn't have news-brief's tech/general fork) — Bangkok
 Post's dedicated `thailand.xml` section feed was picked deliberately over its
 `topstories.xml` (which mixes in international wire content) specifically to keep the
-pool Thailand-specific by construction, not by prompt-side filtering alone. `tech-brief`
-and `thailand-brief` both originally had the model append each bullet's source URL (a
-pattern that only ever made sense for `tech-brief`, where the LLM/model-news half needs
-attribution); removed from `thailand-brief`, and never added to `australia-brief` — both
-are pure-summary, no links.
+pool Thailand-specific by construction, not by prompt-side filtering alone.
+`thailand-brief` originally had the model append each bullet's source URL inline (a
+pattern carried over from `tech-brief`, which still does this — its LLM/model-news half
+needs per-item attribution); removed from `thailand-brief` shortly after launch, then
+reintroduced 2026-08-23 in a different shape — see the "Sources:" section note below,
+now shared by `news-brief`/`thailand-brief`/`australia-brief`. `tech-brief` itself is
+unchanged, still inline.
 
 `australia-brief` shipped 2026-08-16 alongside two lessons applied proactively from
 `thailand-brief`'s launch: (1) the script extracts and cleans each item's RSS
@@ -105,6 +107,25 @@ news day rather than letting the total run long. Same fix applied to both jobs s
 both share the identical enriched-bullet pattern and neither had a length cap before
 this.
 
+**`news-brief` fixed to match `thailand-brief`/`australia-brief`'s depth**, 2026-08-23,
+after the user directly compared per-bullet richness across jobs and found `news-brief`
+noticeably thinner, plus inconsistent link inclusion day to day. Same root cause as the
+original `thailand-brief` bug: `news-brief.sh` was still only extracting `title` +
+`link` from BBC's feed, never the `description` field — masked longer than it should
+have been because BBC's major-story headlines are things the model often already has
+background knowledge of, so it read passably even without the source's own summary
+sentence. The "links where useful" phrasing in the prompt was the separate cause of the
+inconsistency — subjective wording, interpreted differently run to run. Fixed both:
+script now extracts and cleans `description` like the other jobs; prompt now specifies
+pure-summary, link-free bullets capped at ~1950 characters, followed by a separate
+"Sources:" section listing each bullet's link in matching order — explicitly *not*
+counted against that cap, and allowed to push the total over Discord's limit into a
+second auto-split message, accepted deliberately rather than trimming content to avoid
+it. Same "Sources:" pattern extended to `thailand-brief` and `australia-brief`
+2026-08-23 (both scripts updated to carry each item's link through the pool again,
+having dropped it entirely days earlier — see below) — all three general-news-style
+jobs now share one link convention.
+
 **`market-brief`'s prompt now separates the index-summary line from the news-bullet
 budget**, fixed 2026-08-16 after a report looked unusually shallow (2 news bullets
 instead of the usual 5). Root cause: the prompt's "4-6 total bullets" cap never
@@ -116,6 +137,18 @@ regardless of how much was in the pool (which, checked directly, was a healthy 8
 items that day — not a thin-data problem). Fix: the index summary is now specified as
 always exactly one combined line, structurally separate from and not counted against
 the "4-6 news bullets" budget.
+
+**`thailand-brief` and `australia-brief` got the same "Sources:" treatment as
+`news-brief`, 2026-08-23**, at explicit request to match "exactly the same manner."
+Both scripts had dropped each item's link entirely when links were removed a week
+earlier; both now carry the link back through the pool alongside title and description
+(Guardian's block already computed `link` internally for its opinion/podcast filtering
+but never printed it — just needed wiring to the output line). Prompts updated
+identically to `news-brief`'s: link-free bullets capped at ~1950 characters, followed
+by a "Sources:" section not counted against that cap. Verified per job: `thailand-brief`
+landed at 1915 bullet-chars (11 bullets, 11 matching sources, cutting it closer to the
+1950 ceiling than usual but still under), `australia-brief` at 1255 (9 bullets, 9
+matching sources) — both delivered clean, TTS audio confirmed generated for both.
 
 **`cron.wrap_response: false` added to `config.yaml`.** Every cron job's Discord
 delivery was silently being wrapped in a `Cronjob Response: <name>\n(job_id: ...)\n---\n\n<content>\n\nTo stop or manage this job, send me a new message (e.g. "stop reminder <name>").`
@@ -158,7 +191,7 @@ upstream aggregator for every model below. The one exception is text-to-speech
 | Discord Bot API + Gateway | Messaging platform — delivery (REST) and two-way chat (gateway websocket, requires the Message Content privileged intent) | `DISCORD_BOT_TOKEN` |
 | Frankfurter API (`api.frankfurter.dev`) | `hermes-health`, USD→AUD conversion for the daily cost estimate | None — free, no key |
 | Hacker News API (`hacker-news.firebaseio.com`) | `tech-brief` — top 25 tech/AI stories | None — free, no key |
-| BBC News RSS (`feeds.bbci.co.uk`) | `news-brief` — general/world/politics headlines | None — free, no key |
+| BBC News RSS (`feeds.bbci.co.uk`) | `news-brief` — general/world/politics headlines + descriptions | None — free, no key |
 | TechCrunch RSS (`techcrunch.com/feed`) | `tech-brief` — mainstream tech/industry news | None — free, no key |
 | Yahoo Finance chart API (`query1.finance.yahoo.com`) | `market-brief` — index levels (S&P 500, Nasdaq, Dow, ASX 200) | None — free, no key, just needs a User-Agent header. **Unofficial/undocumented endpoint** — could change without notice, same caveat as the roadmap's TradingView blocker |
 | MarketWatch RSS (`feeds.marketwatch.com`) | `market-brief` — market news headlines | None — free, no key |

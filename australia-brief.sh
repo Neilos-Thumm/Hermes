@@ -10,7 +10,8 @@ for item in root.findall(".//item")[:15]:
     desc = item.findtext("description") or ""
     desc = re.sub(r"<[^>]+>", "", desc)
     desc = re.sub(r"\s+", " ", desc).strip()
-    print(f"- {title}: {desc}")
+    link = item.findtext("link") or ""
+    print(f"- {title}: {desc} {link}")
 '
 
 echo
@@ -46,6 +47,6 @@ for item in root.findall(".//item"):
     lead = m.group(1) if m else desc
     lead = re.sub(r"<[^>]+>", "", lead)
     lead = re.sub(r"\s+", " ", lead).strip()
-    print(f"- {title}: {lead}")
+    print(f"- {title}: {lead} {link}")
     count += 1
 '
